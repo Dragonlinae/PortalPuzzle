@@ -11,13 +11,18 @@ public class TilePlayerController : MonoBehaviour
 
     public Transform mapParent;
     public GameObject[] tiles;
+    public GameObject startTile;
+    public GameObject exitTile;
 
     public LayerMask barrier;
+    public LayerMask canPortalSurface;
     public LayerMask map;
     public LayerMask portal;
+    public LayerMask exitLayerMask;
 
     public AudioSource music;
 
+    public Array2DEditor.Array2DInt[] allMapArrays;
     public Array2DEditor.Array2DInt currentMapArray;
 
     public Transform bluePortal;
@@ -28,6 +33,7 @@ public class TilePlayerController : MonoBehaviour
 
     public Transform shadowMC;
     public Transform shadowMovePoint;
+    public int levelNum = 0;
 
 
     private Vector3 moveDirection = Vector3.up;
@@ -55,9 +61,31 @@ public class TilePlayerController : MonoBehaviour
         purplePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
         portalActive = false;
 
+        // Set map
+        currentMapArray = allMapArrays[levelNum];
+
+        // Find position of start and exit tile in currentMapArray
+        Vector3 startPos = Vector3.zero;
+        for (int i = 0; i < currentMapArray.GridSize.x; i++)
+        {
+            for (int j = 0; j < currentMapArray.GridSize.y; j++)
+            {
+                if (currentMapArray.GetCell(i, j) == -1)
+                {
+                    startPos = new Vector3(i - currentMapArray.GridSize.x / 2, currentMapArray.GridSize.y / 2 - j, 0);
+                    Instantiate(startTile, startPos, Quaternion.identity, mapParent);
+                }
+                else if (currentMapArray.GetCell(i, j) == -2)
+                {
+                    Vector3 exitPos = new Vector3(i - currentMapArray.GridSize.x / 2, currentMapArray.GridSize.y / 2 - j, 0);
+                    Instantiate(exitTile, exitPos, Quaternion.identity, mapParent);
+                }
+            }
+        }
+
         // Reset player position
-        movePoint.position = Vector3.zero;
-        transform.position = Vector3.zero;
+        movePoint.position = startPos;
+        transform.position = startPos;
         transform.rotation = Quaternion.Euler(0, 0, 0);
 
         drawTiles();
@@ -108,14 +136,18 @@ public class TilePlayerController : MonoBehaviour
             else if (Input.GetKeyDown(KeyCode.Space))
             {
                 // Detect nearest wall above us and put blue portal at that position of hit object and face player
-                RaycastHit2D hit = Physics2D.Raycast(transform.position, moveDirection, 10f, barrier);
-                if (hit.collider != null)
+                RaycastHit2D hit = Physics2D.Raycast(transform.position, moveDirection, 20f, canPortalSurface);
+                if (hit)
                 {
-                    currPortal.position = hit.collider.transform.position;
-                    currPortalMask.position = hit.collider.transform.position;
+                    currPortal.position = hit.transform.position;
+                    currPortalMask.position = hit.transform.position;
                     currPortal.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, hit.normal));
                     currPortalMask.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, hit.normal));
                     currPortal.gameObject.GetComponent<SpriteRenderer>().enabled = true;
+
+                    // Reveal block in front of portal
+                    Instantiate(tiles[currentMapArray.GetCell(currentMapArray.GridSize.x / 2 + (int)(currPortal.position.x + hit.normal.x), currentMapArray.GridSize.y / 2 - (int)(currPortal.position.y + hit.normal.y))], currPortal.position + (Vector3)hit.normal, Quaternion.identity, mapParent);
+
                     // Update currPortal
                     if (currPortal == bluePortal)
                     {
@@ -133,7 +165,7 @@ public class TilePlayerController : MonoBehaviour
                     }
 
                     // Check if blue portal and purple portal overlap
-                    if (Vector2.Distance(bluePortal.position, purplePortal.position) < 0.5f)
+                    if (Vector2.Distance(bluePortal.position, purplePortal.position) < 0.5f && Quaternion.Angle(bluePortal.rotation, purplePortal.rotation) < 10)
                     {
                         // Disable current portal
                         currPortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
@@ -157,35 +189,38 @@ public class TilePlayerController : MonoBehaviour
 
         if (moved)
         {
-            // If player moves into a portal, teleport to other portal, else move player as long as move is valid
-            Collider2D hitPortal = Physics2D.OverlapCircle(movePoint.position + moveDirection, 0.1f, portal);
-            if (hitPortal && portalActive)
+            // If player moves into a portal, check if move is valid and teleport to other portal, else move player as long as move is valid
+            Collider2D[] allHitPortals = Physics2D.OverlapCircleAll(movePoint.position + moveDirection, 0.1f, portal);
+            foreach (Collider2D hitPortal in allHitPortals)
             {
-                if (hitPortal.gameObject == bluePortal.gameObject)
+                if (hitPortal && portalActive && hitPortal.gameObject.transform.rotation == Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.down, moveDirection)) && !Physics2D.OverlapCircle(purplePortal.position + purplePortal.rotation * Vector3.up, 0.1f, barrier) && !Physics2D.OverlapCircle(bluePortal.position + bluePortal.rotation * Vector3.up, 0.1f, barrier))
                 {
-                    // Set up shadow movement
-                    shadowMC.SetPositionAndRotation(transform.position, transform.rotation);
-                    shadowMovePoint.position = bluePortal.position;
+                    if (hitPortal.gameObject == bluePortal.gameObject)
+                    {
+                        // Set up shadow movement
+                        shadowMC.SetPositionAndRotation(transform.position, transform.rotation);
+                        shadowMovePoint.position = bluePortal.position;
 
-                    transform.position = purplePortal.position;
-                    movePoint.position = purplePortal.position + purplePortal.rotation * Vector3.up;
-                    // get difference in rotation of blue and purple portal and rotate player accordingly
-                    transform.rotation = Quaternion.Euler(0, 0, transform.eulerAngles.z + purplePortal.eulerAngles.z - bluePortal.eulerAngles.z + 180);
+                        transform.position = purplePortal.position;
+                        movePoint.position = purplePortal.position + purplePortal.rotation * Vector3.up;
+                        // get difference in rotation of blue and purple portal and rotate player accordingly
+                        transform.rotation = Quaternion.Euler(0, 0, transform.eulerAngles.z + purplePortal.eulerAngles.z - bluePortal.eulerAngles.z + 180);
 
-                }
-                else
-                {
-                    // Set up shadow movement
-                    shadowMC.SetPositionAndRotation(transform.position, transform.rotation);
-                    shadowMovePoint.position = purplePortal.position;
+                    }
+                    else
+                    {
+                        // Set up shadow movement
+                        shadowMC.SetPositionAndRotation(transform.position, transform.rotation);
+                        shadowMovePoint.position = purplePortal.position;
 
-                    transform.position = bluePortal.position;
-                    movePoint.position = bluePortal.position + bluePortal.rotation * Vector3.up;
-                    // get difference in rotation of blue and purple portal and rotate player accordingly
-                    transform.rotation = Quaternion.Euler(0, 0, transform.eulerAngles.z + bluePortal.eulerAngles.z - purplePortal.eulerAngles.z + 180);
+                        transform.position = bluePortal.position;
+                        movePoint.position = bluePortal.position + bluePortal.rotation * Vector3.up;
+                        // get difference in rotation of blue and purple portal and rotate player accordingly
+                        transform.rotation = Quaternion.Euler(0, 0, transform.eulerAngles.z + bluePortal.eulerAngles.z - purplePortal.eulerAngles.z + 180);
+                    }
                 }
             }
-            else if (!Physics2D.OverlapCircle(movePoint.position + moveDirection, 0.1f, barrier))
+            if (allHitPortals.Length == 0 && !Physics2D.OverlapCircle(movePoint.position + moveDirection, 0.1f, barrier))
             {
                 movePoint.position += moveDirection;
             }
@@ -193,6 +228,12 @@ public class TilePlayerController : MonoBehaviour
             // Rotate dirIndicator based on moveDirection
             dirIndicator.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, moveDirection));
 
+            // Check if player is at the end of the level
+            Collider2D finishLevel = Physics2D.OverlapCircle(movePoint.position, 0.1f, exitLayerMask);
+            if (finishLevel)
+            {
+                nextLevel();
+            }
 
             moved = false;
 
@@ -206,8 +247,21 @@ public class TilePlayerController : MonoBehaviour
         {
             if (!Physics2D.OverlapCircle(movePoint.position + direction, 0.1f, map))
             {
-                Instantiate(tiles[currentMapArray.GetCell(5 + (int)(movePoint.position.x + direction.x), 5 - (int)(movePoint.position.y + direction.y))], movePoint.position + direction, Quaternion.identity, mapParent);
+                Instantiate(tiles[currentMapArray.GetCell(currentMapArray.GridSize.x / 2 + (int)(movePoint.position.x + direction.x), currentMapArray.GridSize.y / 2 - (int)(movePoint.position.y + direction.y))], movePoint.position + direction, Quaternion.identity, mapParent);
             }
+        }
+    }
+
+    void nextLevel()
+    {
+        if (levelNum < allMapArrays.Length - 1)
+        {
+            levelNum++;
+            Start();
+        }
+        else
+        {
+            // TODO: End game
         }
     }
 }
