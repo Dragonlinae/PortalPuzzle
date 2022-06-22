@@ -24,6 +24,8 @@ public class TilePlayerController : MonoBehaviour
 
     public Array2DEditor.Array2DInt[] allMapArrays;
     public Array2DEditor.Array2DInt currentMapArray;
+    public DialogueTrigger[] allDialogues;
+    public DialogueManager dialogueManager;
 
     public Transform bluePortal;
     public Transform purplePortal;
@@ -36,7 +38,7 @@ public class TilePlayerController : MonoBehaviour
     public int levelNum = 0;
 
 
-    private Vector3 moveDirection = Vector3.up;
+    private Vector3 moveDirection;
     private Transform currPortal;
     private Transform currPortalMask;
     private bool moved = false;
@@ -87,13 +89,30 @@ public class TilePlayerController : MonoBehaviour
         movePoint.position = startPos;
         transform.position = startPos;
         transform.rotation = Quaternion.Euler(0, 0, 0);
+        moveDirection = Vector3.up;
+        dirIndicator.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, moveDirection));
 
-        drawTiles();
+        DrawTiles();
+
+        // Run Dialogue
+        if (allDialogues[levelNum] != null)
+        {
+            allDialogues[levelNum].TriggerDialogue();
+        }
     }
 
     // Update is called once per frame
     void Update()
     {
+        if (dialogueManager.isTalking)
+        {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                dialogueManager.DisplayNextSentence();
+            }
+            return;
+        }
+
         transform.position = Vector3.MoveTowards(transform.position, movePoint.position, moveSpeed * Time.deltaTime);
 
         if (transform.position != movePoint.position)
@@ -146,7 +165,8 @@ public class TilePlayerController : MonoBehaviour
                     currPortal.gameObject.GetComponent<SpriteRenderer>().enabled = true;
 
                     // Reveal block in front of portal
-                    Instantiate(tiles[currentMapArray.GetCell(currentMapArray.GridSize.x / 2 + (int)(currPortal.position.x + hit.normal.x), currentMapArray.GridSize.y / 2 - (int)(currPortal.position.y + hit.normal.y))], currPortal.position + (Vector3)hit.normal, Quaternion.identity, mapParent);
+                    if (!Physics2D.OverlapCircle(currPortal.position + (Vector3)hit.normal, 0.1f, map))
+                        Instantiate(tiles[currentMapArray.GetCell(currentMapArray.GridSize.x / 2 + (int)(currPortal.position.x + hit.normal.x), currentMapArray.GridSize.y / 2 - (int)(currPortal.position.y + hit.normal.y))], currPortal.position + (Vector3)hit.normal, Quaternion.identity, mapParent);
 
                     // Update currPortal
                     if (currPortal == bluePortal)
@@ -179,6 +199,24 @@ public class TilePlayerController : MonoBehaviour
                 else
                 {
                     portalActive = false;
+                }
+            }
+            else if (Input.GetKeyDown(KeyCode.LeftShift))
+            {
+                // Update currPortal
+                if (currPortal == bluePortal)
+                {
+                    currPortal = purplePortal;
+                    currPortalMask = purplePortalMask;
+                    // Change dirIndicator child object color to purple
+                    dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = Color.magenta;
+                }
+                else
+                {
+                    currPortal = bluePortal;
+                    currPortalMask = bluePortalMask;
+                    // Change dirIndicator child object color to blue
+                    dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = Color.blue;
                 }
             }
             else if (Input.GetKeyDown(KeyCode.R))
@@ -232,16 +270,16 @@ public class TilePlayerController : MonoBehaviour
             Collider2D finishLevel = Physics2D.OverlapCircle(movePoint.position, 0.1f, exitLayerMask);
             if (finishLevel)
             {
-                nextLevel();
+                NextLevel();
             }
 
             moved = false;
 
-            drawTiles();
+            DrawTiles();
         }
     }
 
-    void drawTiles()
+    void DrawTiles()
     {
         foreach (Vector3 direction in new Vector3[] { Vector3.up, Vector3.down, Vector3.left, Vector3.right, Vector3.zero })
         {
@@ -252,7 +290,7 @@ public class TilePlayerController : MonoBehaviour
         }
     }
 
-    void nextLevel()
+    void NextLevel()
     {
         if (levelNum < allMapArrays.Length - 1)
         {
