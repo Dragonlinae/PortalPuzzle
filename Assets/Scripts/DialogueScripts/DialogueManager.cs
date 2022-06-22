@@ -12,13 +12,13 @@ public class DialogueManager : MonoBehaviour
 
     public Animator animator;
 
-    private Queue<string> sentences;
+    private Queue<string> sentences = new Queue<string>();
     public bool isTalking = false;
 
     // Start is called before the first frame update
     void Start()
     {
-        sentences = new Queue<string>();
+
     }
 
     public void StartDialogue(Dialogue dialogue)

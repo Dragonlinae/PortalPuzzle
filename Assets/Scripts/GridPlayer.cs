@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class TilePlayerController : MonoBehaviour
+public class GridPlayer : MonoBehaviour
 {
     public float moveSpeed = 5f;
     public Transform movePoint;
@@ -48,57 +48,7 @@ public class TilePlayerController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        movePoint.parent = null;
-        currPortal = bluePortal;
-        currPortalMask = bluePortalMask;
-
-        // Clear map
-        foreach (Transform child in mapParent)
-        {
-            Destroy(child.gameObject);
-        }
-
-        // Reset portal visibility
-        bluePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
-        purplePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
-        portalActive = false;
-
-        // Set map
-        currentMapArray = allMapArrays[levelNum];
-
-        // Find position of start and exit tile in currentMapArray
-        Vector3 startPos = Vector3.zero;
-        for (int i = 0; i < currentMapArray.GridSize.x; i++)
-        {
-            for (int j = 0; j < currentMapArray.GridSize.y; j++)
-            {
-                if (currentMapArray.GetCell(i, j) == -1)
-                {
-                    startPos = new Vector3(i - currentMapArray.GridSize.x / 2, currentMapArray.GridSize.y / 2 - j, 0);
-                    Instantiate(startTile, startPos, Quaternion.identity, mapParent);
-                }
-                else if (currentMapArray.GetCell(i, j) == -2)
-                {
-                    Vector3 exitPos = new Vector3(i - currentMapArray.GridSize.x / 2, currentMapArray.GridSize.y / 2 - j, 0);
-                    Instantiate(exitTile, exitPos, Quaternion.identity, mapParent);
-                }
-            }
-        }
-
-        // Reset player position
-        movePoint.position = startPos;
-        transform.position = startPos;
-        transform.rotation = Quaternion.Euler(0, 0, 0);
-        moveDirection = Vector3.up;
-        dirIndicator.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, moveDirection));
-
-        DrawTiles();
-
-        // Run Dialogue
-        if (allDialogues[levelNum] != null)
-        {
-            allDialogues[levelNum].TriggerDialogue();
-        }
+        ResetStage();
     }
 
     // Update is called once per frame
@@ -106,7 +56,7 @@ public class TilePlayerController : MonoBehaviour
     {
         if (dialogueManager.isTalking)
         {
-            if (Input.GetKeyDown(KeyCode.Space))
+            if (Input.anyKeyDown)
             {
                 dialogueManager.DisplayNextSentence();
             }
@@ -152,17 +102,25 @@ public class TilePlayerController : MonoBehaviour
                 moveDirection = Vector3.right;
                 moved = true;
             }
-            else if (Input.GetKeyDown(KeyCode.Space))
+            else if (Input.GetKeyDown(KeyCode.Space)) // Fire Portal
             {
                 // Detect nearest wall above us and put blue portal at that position of hit object and face player
                 RaycastHit2D hit = Physics2D.Raycast(transform.position, moveDirection, 20f, canPortalSurface);
                 if (hit)
                 {
-                    currPortal.position = hit.transform.position;
+                    LineRenderer lr = GetComponentInChildren<LineRenderer>();
+                    lr.SetPosition(0, transform.position + Vector3.back);
+                    lr.SetPosition(1, (Vector3)hit.point + Vector3.back);
+                    // change lr sprite color
+                    lr.startColor = Color.white;
+                    lr.endColor = currPortal.GetComponent<SpriteRenderer>().color;
+                    lr.GetComponent<LineRenderer>().enabled = true;
+                    currPortal.position = hit.transform.position + Vector3.back;
                     currPortalMask.position = hit.transform.position;
                     currPortal.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, hit.normal));
                     currPortalMask.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, hit.normal));
                     currPortal.gameObject.GetComponent<SpriteRenderer>().enabled = true;
+                    currPortal.gameObject.GetComponent<ParticleSystem>().Play();
 
                     // Reveal block in front of portal
                     if (!Physics2D.OverlapCircle(currPortal.position + (Vector3)hit.normal, 0.1f, map))
@@ -174,14 +132,14 @@ public class TilePlayerController : MonoBehaviour
                         currPortal = purplePortal;
                         currPortalMask = purplePortalMask;
                         // Change dirIndicator child object color to purple
-                        dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = Color.magenta;
+                        dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = purplePortal.GetComponent<SpriteRenderer>().color;
                     }
                     else
                     {
                         currPortal = bluePortal;
                         currPortalMask = bluePortalMask;
                         // Change dirIndicator child object color to blue
-                        dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = Color.blue;
+                        dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = bluePortal.GetComponent<SpriteRenderer>().color;
                     }
 
                     // Check if blue portal and purple portal overlap
@@ -189,6 +147,7 @@ public class TilePlayerController : MonoBehaviour
                     {
                         // Disable current portal
                         currPortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
+                        currPortal.gameObject.GetComponent<ParticleSystem>().Stop();
                     }
                 }
                 // Check if both portals are active
@@ -276,6 +235,61 @@ public class TilePlayerController : MonoBehaviour
             moved = false;
 
             DrawTiles();
+        }
+    }
+
+    void ResetStage()
+    {
+        movePoint.parent = null;
+        currPortal = bluePortal;
+        currPortalMask = bluePortalMask;
+
+        // Clear map
+        foreach (Transform child in mapParent)
+        {
+            Destroy(child.gameObject);
+        }
+
+        // Reset portal visibility
+        bluePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
+        purplePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
+        portalActive = false;
+
+        // Set map
+        currentMapArray = allMapArrays[levelNum];
+
+        // Find position of start and exit tile in currentMapArray
+        Vector3 startPos = Vector3.zero;
+        for (int i = 0; i < currentMapArray.GridSize.x; i++)
+        {
+            for (int j = 0; j < currentMapArray.GridSize.y; j++)
+            {
+                if (currentMapArray.GetCell(i, j) == -1)
+                {
+                    startPos = new Vector3(i - currentMapArray.GridSize.x / 2, currentMapArray.GridSize.y / 2 - j, 0);
+                    Instantiate(startTile, startPos, Quaternion.identity, mapParent);
+                }
+                else if (currentMapArray.GetCell(i, j) == -2)
+                {
+                    Vector3 exitPos = new Vector3(i - currentMapArray.GridSize.x / 2, currentMapArray.GridSize.y / 2 - j, 0);
+                    Instantiate(exitTile, exitPos, Quaternion.identity, mapParent);
+                }
+            }
+        }
+
+        // Reset player position
+        movePoint.position = startPos;
+        transform.position = startPos;
+        transform.rotation = Quaternion.Euler(0, 0, 0);
+        moveDirection = Vector3.up;
+        dirIndicator.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, moveDirection));
+
+        DrawTiles();
+
+        // Run Dialogue
+        if (allDialogues[levelNum] != null)
+        {
+            allDialogues[levelNum].TriggerDialogue();
         }
     }
 
