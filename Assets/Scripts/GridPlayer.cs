@@ -129,7 +129,7 @@ public class GridPlayer : MonoBehaviour
 
                     // Reveal block in front of portal
                     if (!Physics2D.OverlapCircle(currPortal.position + (Vector3)hit.normal, 0.1f, map))
-                        Instantiate(tiles[currentMapArray.GetCell(currentMapArray.GridSize.x / 2 + (int)(currPortal.position.x + hit.normal.x), currentMapArray.GridSize.y / 2 - (int)(currPortal.position.y + hit.normal.y))], currPortal.position + (Vector3)hit.normal, Quaternion.identity, mapParent);
+                        Instantiate(tiles[currentMapArray.GetCell(currentMapArray.GridSize.x / 2 + (int)(currPortal.position.x + hit.normal.x), currentMapArray.GridSize.y / 2 - (int)(currPortal.position.y + hit.normal.y))], new Vector3(currPortal.position.x, currPortal.position.y, 0) + (Vector3)hit.normal, Quaternion.identity, mapParent);
 
                     // Update currPortal
                     if (currPortal == bluePortal)
