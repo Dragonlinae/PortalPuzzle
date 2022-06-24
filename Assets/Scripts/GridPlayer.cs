@@ -43,19 +43,11 @@ public class GridPlayer : MonoBehaviour
     private Transform currPortalMask;
     private bool moved = false;
     private bool portalActive = false;
-    public PortalRay portalRay;
-
-    private LineRenderer lr;
-    private ParticleSystem ps;
 
 
     // Start is called before the first frame update
     void Start()
     {
-        lr = GetComponentInChildren<LineRenderer>();
-        ps = GetComponentInChildren<ParticleSystem>();
-        lr.transform.parent = null;
-        movePoint.parent = null;
         ResetStage();
     }
 
@@ -116,10 +108,13 @@ public class GridPlayer : MonoBehaviour
                 RaycastHit2D hit = Physics2D.Raycast(transform.position, moveDirection, 20f, canPortalSurface);
                 if (hit)
                 {
-                    // Draw the ray
-                    portalRay.fire(transform.position, (Vector3)hit.point, moveDirection, currPortal.GetComponent<SpriteRenderer>().color);
-
-                    // Set the portal to the hit object
+                    LineRenderer lr = GetComponentInChildren<LineRenderer>();
+                    lr.SetPosition(0, transform.position + Vector3.back);
+                    lr.SetPosition(1, (Vector3)hit.point + Vector3.back);
+                    // change lr sprite color
+                    lr.startColor = Color.white;
+                    lr.endColor = currPortal.GetComponent<SpriteRenderer>().color;
+                    lr.GetComponent<LineRenderer>().enabled = true;
                     currPortal.position = hit.transform.position + Vector3.back;
                     currPortalMask.position = hit.transform.position;
                     currPortal.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, hit.normal));
@@ -155,28 +150,6 @@ public class GridPlayer : MonoBehaviour
                         currPortal.gameObject.GetComponent<ParticleSystem>().Stop();
                     }
                 }
-                else
-                {
-                    // Draw the ray
-                    portalRay.fire(transform.position, moveDirection * 20 + transform.position, moveDirection, currPortal.GetComponent<SpriteRenderer>().color);
-
-                    // Update currPortal
-                    if (currPortal == bluePortal)
-                    {
-                        currPortal = purplePortal;
-                        currPortalMask = purplePortalMask;
-                        // Change dirIndicator child object color to purple
-                        dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = purplePortal.GetComponent<SpriteRenderer>().color;
-                    }
-                    else
-                    {
-                        currPortal = bluePortal;
-                        currPortalMask = bluePortalMask;
-                        // Change dirIndicator child object color to blue
-                        dirIndicator.GetChild(0).GetComponent<SpriteRenderer>().color = bluePortal.GetComponent<SpriteRenderer>().color;
-                    }
-
-                }
                 // Check if both portals are active
                 if (bluePortal.gameObject.GetComponent<SpriteRenderer>().enabled && purplePortal.gameObject.GetComponent<SpriteRenderer>().enabled)
                 {
@@ -207,7 +180,7 @@ public class GridPlayer : MonoBehaviour
             }
             else if (Input.GetKeyDown(KeyCode.R))
             {
-                ResetStage();
+                Start();
             }
         }
 
@@ -267,6 +240,7 @@ public class GridPlayer : MonoBehaviour
 
     void ResetStage()
     {
+        movePoint.parent = null;
         currPortal = bluePortal;
         currPortalMask = bluePortalMask;
 
@@ -278,9 +252,7 @@ public class GridPlayer : MonoBehaviour
 
         // Reset portal visibility
         bluePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
-        bluePortal.gameObject.GetComponent<ParticleSystem>().Stop();
         purplePortal.gameObject.GetComponent<SpriteRenderer>().enabled = false;
-        purplePortal.gameObject.GetComponent<ParticleSystem>().Stop();
         portalActive = false;
 
         // Set map
@@ -337,7 +309,7 @@ public class GridPlayer : MonoBehaviour
         if (levelNum < allMapArrays.Length - 1)
         {
             levelNum++;
-            ResetStage();
+            Start();
         }
         else
         {
